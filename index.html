@@ -1,0 +1,1231 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>🐱 Кот-Ниндзя</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+  html, body {
+    background: #0a0a1a;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+    font-family: 'Courier New', monospace;
+    touch-action: none;
+    position: fixed;
+  }
+  #wrap {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background: #0a0a1a;
+  }
+  canvas {
+    display: block;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    image-rendering: pixelated;
+  }
+  #hud {
+    position: absolute;
+    top: 10px; left: 14px; right: 14px;
+    display: flex;
+    justify-content: space-between;
+    color: #fff;
+    font-size: 16px;
+    font-weight: bold;
+    text-shadow: 0 0 10px currentColor;
+    pointer-events: none;
+    z-index: 5;
+  }
+  #hud .fish { color: #ff0; }
+  #hud .hp { color: #f36; }
+  #hud .score { color: #0ff; }
+  #hud .combo { color: #f0f; font-size: 13px; }
+
+  /* === ЭКРАННЫЕ КНОПКИ (только на телефоне) === */
+  #touchControls {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    pointer-events: none;
+    display: none;
+  }
+  #touchControls.active { display: block; }
+  #touchControls .btn {
+    position: absolute;
+    pointer-events: auto;
+    background: rgba(0, 255, 255, 0.12);
+    border: 2px solid rgba(0, 255, 255, 0.5);
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: #0ff;
+    font-size: 26px;
+    font-weight: bold;
+    text-shadow: 0 0 10px #0ff;
+    transition: transform 0.08s, background 0.08s;
+    touch-action: none;
+  }
+  #touchControls .btn.pressed {
+    background: rgba(0, 255, 255, 0.4);
+    transform: scale(0.92);
+  }
+  /* Левая часть — движение */
+  #btnLeft {
+    left: 20px;
+    bottom: 30px;
+    width: 76px;
+    height: 76px;
+  }
+  #btnRight {
+    left: 115px;
+    bottom: 30px;
+    width: 76px;
+    height: 76px;
+  }
+  /* Правая часть — действия */
+  #btnJump {
+    right: 115px;
+    bottom: 30px;
+    width: 90px;
+    height: 90px;
+    background: rgba(255, 255, 0, 0.12);
+    border-color: rgba(255, 255, 0, 0.5);
+    color: #ff0;
+    text-shadow: 0 0 10px #ff0;
+    font-size: 30px;
+  }
+  #btnJump.pressed {
+    background: rgba(255, 255, 0, 0.4);
+  }
+  #btnAttack {
+    right: 20px;
+    bottom: 30px;
+    width: 90px;
+    height: 90px;
+    background: rgba(255, 0, 100, 0.12);
+    border-color: rgba(255, 0, 100, 0.5);
+    color: #f36;
+    text-shadow: 0 0 10px #f36;
+    font-size: 30px;
+  }
+  #btnAttack.pressed {
+    background: rgba(255, 0, 100, 0.4);
+  }
+
+  /* === Оверлей === */
+  #overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    background: rgba(0,0,10,0.94);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 20px;
+    overflow-y: auto;
+  }
+  #overlay h1 {
+    font-size: clamp(28px, 7vw, 44px);
+    color: #f0f;
+    text-shadow: 0 0 20px #f0f, 0 0 40px #f0f;
+    letter-spacing: 3px;
+    margin-bottom: 8px;
+  }
+  #overlay h1 .cat { font-size: clamp(44px, 12vw, 60px); display: block; margin-bottom: 6px; }
+  #overlay p { color: #0ff; font-size: clamp(13px, 3.5vw, 15px); margin: 4px 0; line-height: 1.6; }
+  #overlay .controls {
+    color: #ff0;
+    font-size: clamp(11px, 3vw, 13px);
+    margin: 14px 0;
+    padding: 12px 20px;
+    border: 1px solid #ff04;
+    border-radius: 6px;
+    background: #ff011;
+    text-align: left;
+    line-height: 1.8;
+    max-width: 90%;
+  }
+  #overlay button {
+    margin-top: 14px;
+    padding: 14px 40px;
+    font-family: inherit;
+    font-size: clamp(15px, 4vw, 18px);
+    font-weight: bold;
+    letter-spacing: 2px;
+    color: #000;
+    background: #f0f;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 0 25px #f0f;
+    transition: 0.15s;
+    border-radius: 8px;
+  }
+  #overlay button:active { background: #f6f; transform: scale(0.96); }
+  .hidden { display: none !important; }
+
+  /* Подсказка про поворот */
+  #rotateHint {
+    position: absolute;
+    inset: 0;
+    z-index: 50;
+    background: #0a0a1a;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: #0ff;
+    text-align: center;
+    padding: 30px;
+  }
+  #rotateHint.active { display: flex; }
+  #rotateHint .icon {
+    font-size: 60px;
+    margin-bottom: 20px;
+    animation: rotate 2s infinite;
+  }
+  @keyframes rotate {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(90deg); }
+  }
+
+  /* Показываем тач-кнопки только на тач-устройствах */
+  @media (hover: none) and (pointer: coarse) {
+    #touchControls.active { display: block; }
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="canvas" width="900" height="540"></canvas>
+
+  <div id="hud">
+    <div class="hp">❤️ <span id="hp">3</span></div>
+    <div class="fish">🐟 <span id="fish">0</span></div>
+    <div class="score">SCORE <span id="score">0</span></div>
+    <div class="combo" id="combo"></div>
+  </div>
+
+  <div id="touchControls">
+    <div class="btn" id="btnLeft">◀</div>
+    <div class="btn" id="btnRight">▶</div>
+    <div class="btn" id="btnJump">🐾</div>
+    <div class="btn" id="btnAttack">⚔️</div>
+  </div>
+
+  <div id="overlay">
+    <h1><span class="cat">🐱</span>КОТ-НИНДЗЯ</h1>
+    <p>Мурзик против мышей-ниндзя</p>
+    <div class="controls" id="controlsText">
+      <b>УПРАВЛЕНИЕ:</b><br>
+      ← → / A D — движение<br>
+      ПРОБЕЛ / W / ↑ — прыжок (двойной!)<br>
+      J / X — удар когтем<br>
+      R — перезапуск
+    </div>
+    <button id="startBtn">МЯУ! В БОЙ</button>
+  </div>
+
+  <div id="rotateHint">
+    <div class="icon">📱</div>
+    <div style="font-size:18px;font-weight:bold;">ПОВЕРНИ ТЕЛЕФОН ГОРИЗОНТАЛЬНО</div>
+    <div style="font-size:13px;color:#0f8;margin-top:10px;">Так играть удобнее</div>
+  </div>
+</div>
+
+<script>
+// ============ ОПРЕДЕЛЕНИЕ УСТРОЙСТВА ============
+const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+const isMobile = isTouchDevice && window.innerWidth < 1024;
+
+// ============ АДАПТАЦИЯ CANVAS ============
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const BASE_W = 900, BASE_H = 540;
+let W = BASE_W, H = BASE_H;
+let scale = 1;
+
+function resizeCanvas() {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  const scaleX = vw / BASE_W;
+  const scaleY = vh / BASE_H;
+  scale = Math.min(scaleX, scaleY);
+
+  const displayW = BASE_W * scale;
+  const displayH = BASE_H * scale;
+
+  canvas.style.width = displayW + 'px';
+  canvas.style.height = displayH + 'px';
+
+  // Внутренний размер оставляем базовым — рисуем всегда в 900×540
+  W = BASE_W;
+  H = BASE_H;
+
+  // Проверяем ориентацию на мобилке
+  if (isMobile && vh > vw) {
+    document.getElementById('rotateHint').classList.add('active');
+  } else {
+    document.getElementById('rotateHint').classList.remove('active');
+  }
+}
+
+window.addEventListener('resize', resizeCanvas);
+window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 200));
+
+// ============ UI ССЫЛКИ ============
+const hpEl = document.getElementById('hp');
+const fishEl = document.getElementById('fish');
+const scoreEl = document.getElementById('score');
+const comboEl = document.getElementById('combo');
+const overlay = document.getElementById('overlay');
+const startBtn = document.getElementById('startBtn');
+const touchControls = document.getElementById('touchControls');
+
+// Показываем тач-кнопки, если тач-устройство
+if (isMobile) {
+  touchControls.classList.add('active');
+  document.getElementById('controlsText').innerHTML = `
+    <b>УПРАВЛЕНИЕ (телефон):</b><br>
+    ◀ ▶ — движение<br>
+    🐾 — прыжок (двойной!)<br>
+    ⚔️ — удар когтем
+  `;
+}
+
+let game;
+let running = false;
+let keys = {};
+let lastTime = 0;
+
+// ============ ИГРА ============
+function createGame() {
+  return {
+    cat: {
+      x: 100, y: 400, vx: 0, vy: 0,
+      w: 44, h: 44,
+      onGround: false,
+      jumps: 2,
+      facing: 1,
+      attackTimer: 0,
+      attackCooldown: 0,
+      attackHitDone: false,
+      invuln: 0,
+      runFrame: 0
+    },
+    platforms: [],
+    enemies: [],
+    items: [],
+    particles: [],
+    camera: { x: 0, y: 0 },
+    score: 0,
+    fish: 0,
+    hp: 3,
+    combo: 0,
+    comboTimer: 0,
+    distance: 0,
+    bgOffset: 0,
+    shake: 0,
+    gravity: 1800,
+    jumpPower: -680,
+    moveSpeed: 320,
+    lastPlatformX: 0
+  };
+}
+
+function initLevel() {
+  game.platforms = [];
+  game.enemies = [];
+  game.items = [];
+  game.particles = [];
+
+  game.platforms.push({ x: 0, y: 480, w: 900, h: 60, type: 'ground' });
+  game.lastPlatformX = 900;
+
+  game.platforms.push({ x: 400, y: 360, w: 130, h: 20, type: 'roof' });
+  game.platforms.push({ x: 650, y: 320, w: 120, h: 20, type: 'roof' });
+
+  const cat = game.cat;
+  cat.x = 100;
+  cat.y = 400;
+  cat.vx = 0;
+  cat.vy = 0;
+  cat.facing = 1;
+  cat.jumps = 2;
+  cat.onGround = false;
+  cat.invuln = 0;
+  cat.attackTimer = 0;
+  cat.attackCooldown = 0;
+  game.hp = 3;
+  game.score = 0;
+  game.fish = 0;
+  game.combo = 0;
+  game.comboTimer = 0;
+  game.distance = 0;
+  game.camera.x = 0;
+}
+
+// ============ КЛАВИАТУРА ============
+document.addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  keys[k] = true;
+  if (e.key === ' ') e.preventDefault();
+  if (['arrowup','arrowdown','arrowleft','arrowright'].includes(k)) e.preventDefault();
+
+  if (!running) return;
+
+  if ((k === ' ' || k === 'w' || k === 'arrowup' || k === 'ц') && game.cat.jumps > 0) {
+    jump();
+  }
+  if ((k === 'j' || k === 'x' || k === 'о' || k === 'ч') && game.cat.attackCooldown <= 0) {
+    attack();
+  }
+  if (k === 'r' || k === 'к') {
+    initLevel();
+    running = true;
+    overlay.classList.add('hidden');
+  }
+});
+
+document.addEventListener('keyup', e => {
+  keys[e.key.toLowerCase()] = false;
+});
+
+// ============ ТАЧ-УПРАВЛЕНИЕ ============
+function setupTouchButton(id, onPress, onRelease) {
+  const btn = document.getElementById(id);
+  let activeTouchId = null;
+
+  btn.addEventListener('touchstart', e => {
+    e.preventDefault();
+    if (activeTouchId !== null) return;
+    const touch = e.changedTouches[0];
+    activeTouchId = touch.identifier;
+    btn.classList.add('pressed');
+    if (onPress) onPress();
+  }, { passive: false });
+
+  btn.addEventListener('touchend', e => {
+    e.preventDefault();
+    for (const t of e.changedTouches) {
+      if (t.identifier === activeTouchId) {
+        activeTouchId = null;
+        btn.classList.remove('pressed');
+        if (onRelease) onRelease();
+      }
+    }
+  }, { passive: false });
+
+  btn.addEventListener('touchcancel', e => {
+    activeTouchId = null;
+    btn.classList.remove('pressed');
+    if (onRelease) onRelease();
+  });
+
+  // Fallback для мыши (если запустил на компе, но кнопки видны)
+  btn.addEventListener('mousedown', e => {
+    e.preventDefault();
+    btn.classList.add('pressed');
+    if (onPress) onPress();
+  });
+  btn.addEventListener('mouseup', e => {
+    e.preventDefault();
+    btn.classList.remove('pressed');
+    if (onRelease) onRelease();
+  });
+  btn.addEventListener('mouseleave', () => {
+    btn.classList.remove('pressed');
+    if (onRelease) onRelease();
+  });
+}
+
+// Движение — удержание
+let moveLeftHeld = false;
+let moveRightHeld = false;
+
+setupTouchButton('btnLeft',
+  () => { moveLeftHeld = true; },
+  () => { moveLeftHeld = false; }
+);
+setupTouchButton('btnRight',
+  () => { moveRightHeld = true; },
+  () => { moveRightHeld = false; }
+);
+
+// Прыжок — одноразовое нажатие
+setupTouchButton('btnJump', () => {
+  if (!running) return;
+  if (game.cat.jumps > 0) jump();
+});
+
+// Атака — одноразовое нажатие
+setupTouchButton('btnAttack', () => {
+  if (!running) return;
+  if (game.cat.attackCooldown <= 0) attack();
+});
+
+// Запрет скролла/зума
+document.addEventListener('touchmove', e => {
+  e.preventDefault();
+}, { passive: false });
+
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('dblclick', e => e.preventDefault());
+
+// ============ ДЕЙСТВИЯ ============
+function jump() {
+  if (game.cat.jumps <= 0) return;
+  game.cat.vy = game.jumpPower;
+  game.cat.jumps--;
+  game.cat.onGround = false;
+  for (let i = 0; i < 6; i++) {
+    game.particles.push({
+      x: game.cat.x + 22, y: game.cat.y + 44,
+      vx: (Math.random() - 0.5) * 200,
+      vy: Math.random() * 100,
+      life: 0.4, maxLife: 0.4,
+      color: '#0ff', size: 3
+    });
+  }
+}
+
+function attack() {
+  game.cat.attackTimer = 0.2;
+  game.cat.attackCooldown = 0.4;
+  game.cat.attackHitDone = false;
+}
+
+startBtn.onclick = () => {
+  overlay.classList.add('hidden');
+  game = createGame();
+  initLevel();
+  running = true;
+  lastTime = performance.now();
+  loop(lastTime);
+};
+
+// ============ СПАВН ============
+function spawnChunk() {
+  let maxX = game.lastPlatformX;
+  const gap = Math.random() < 0.35 ? 90 + Math.random() * 70 : 0;
+  const newX = maxX + gap;
+  const platW = 180 + Math.random() * 150;
+
+  const chunkPlatforms = [];
+
+  const groundPlat = { x: newX, y: 480, w: platW, h: 60, type: 'ground' };
+  game.platforms.push(groundPlat);
+  chunkPlatforms.push(groundPlat);
+  game.lastPlatformX = newX + platW;
+
+  if (Math.random() < 0.75) {
+    const roofW = 90 + Math.random() * 60;
+    const roofX = newX + 30 + Math.random() * Math.max(1, platW - roofW - 30);
+    const roofY = 340 + Math.random() * 60;
+    const roofPlat = { x: roofX, y: roofY, w: roofW, h: 20, type: 'roof' };
+    game.platforms.push(roofPlat);
+    chunkPlatforms.push(roofPlat);
+  }
+
+  function safeSpotOn(plat, itemW, itemH) {
+    const x = plat.x + 15 + Math.random() * Math.max(1, plat.w - itemW - 30);
+    const floatHeight = 20 + Math.random() * 70;
+    const y = plat.y - itemH - floatHeight;
+    return { x, y };
+  }
+
+  const diff = Math.min(1, game.distance / 5000);
+  if (Math.random() < 0.55 + diff * 0.3 && platW > 200) {
+    const roll = Math.random();
+    let type = 'mouse';
+    if (roll > 0.85) type = 'robot';
+    else if (roll > 0.7) type = 'dog';
+
+    const ex = newX + 40 + Math.random() * (platW - 100);
+    game.enemies.push({
+      x: ex, y: 480 - 44, w: 36, h: 44,
+      vx: -60 - Math.random() * 40 - diff * 50,
+      vy: 0,
+      type: type,
+      hp: type === 'dog' ? 2 : 1,
+      onGround: true,
+      animTimer: 0,
+      hurtTimer: 0
+    });
+  }
+
+  const fishCount = 1 + (Math.random() < 0.4 ? 1 : 0);
+  for (let i = 0; i < fishCount; i++) {
+    const plat = chunkPlatforms[Math.floor(Math.random() * chunkPlatforms.length)];
+    const spot = safeSpotOn(plat, 24, 24);
+    if (!game.items.some(it => Math.abs(it.x - spot.x) < 40 && Math.abs(it.y - spot.y) < 40)) {
+      game.items.push({ x: spot.x, y: spot.y, w: 24, h: 24, type: 'fish', bob: 0 });
+    }
+  }
+
+  if (Math.random() < 0.15) {
+    const plat = chunkPlatforms[Math.floor(Math.random() * chunkPlatforms.length)];
+    const spot = safeSpotOn(plat, 26, 26);
+    if (!game.items.some(it => Math.abs(it.x - spot.x) < 40 && Math.abs(it.y - spot.y) < 40)) {
+      game.items.push({ x: spot.x, y: spot.y, w: 26, h: 26, type: 'milk', bob: 0 });
+    }
+  }
+}
+
+// ============ ОБНОВЛЕНИЕ ============
+function update(dt) {
+  if (!running) return;
+
+  const cat = game.cat;
+
+  let moveDir = 0;
+  if (keys['arrowleft'] || keys['a'] || keys['ф'] || moveLeftHeld) moveDir = -1;
+  if (keys['arrowright'] || keys['d'] || keys['в'] || moveRightHeld) moveDir = 1;
+
+  const targetVx = moveDir * game.moveSpeed;
+  cat.vx += (targetVx - cat.vx) * Math.min(1, dt * 15);
+
+  if (moveDir !== 0) {
+    cat.facing = moveDir;
+    cat.runFrame += dt * 12;
+  } else {
+    cat.runFrame = 0;
+  }
+
+  cat.vy += game.gravity * dt;
+  if (cat.vy > 1200) cat.vy = 1200;
+
+  cat.x += cat.vx * dt;
+  cat.x = Math.max(0, cat.x);
+
+  for (const p of game.platforms) {
+    if (cat.y + cat.h > p.y && cat.y < p.y + p.h) {
+      if (cat.x + cat.w > p.x && cat.x < p.x + p.w) {
+        if (cat.y + cat.h - cat.vy * dt <= p.y + 2) continue;
+        if (cat.vx > 0) cat.x = p.x - cat.w;
+        else if (cat.vx < 0) cat.x = p.x + p.w;
+        cat.vx = 0;
+      }
+    }
+  }
+
+  const prevY = cat.y;
+  cat.y += cat.vy * dt;
+
+  cat.onGround = false;
+  for (const p of game.platforms) {
+    if (cat.x + cat.w > p.x && cat.x < p.x + p.w) {
+      const prevBottom = prevY + cat.h;
+      const currBottom = cat.y + cat.h;
+      if (cat.vy >= 0 && prevBottom <= p.y + 2 && currBottom >= p.y) {
+        cat.y = p.y - cat.h;
+        cat.vy = 0;
+        cat.onGround = true;
+        cat.jumps = 2;
+      }
+      if (cat.vy < 0 && prevY >= p.y + p.h - 2 && cat.y <= p.y + p.h) {
+        cat.y = p.y + p.h;
+        cat.vy = 0;
+      }
+    }
+  }
+
+  if (cat.y > H + 200) {
+    damageCat(1, true);
+    cat.x = Math.max(0, game.camera.x + 100);
+    cat.y = 200;
+    cat.vy = 0;
+    cat.vx = 0;
+    cat.jumps = 2;
+  }
+
+  if (cat.attackTimer > 0) cat.attackTimer -= dt;
+  if (cat.attackCooldown > 0) cat.attackCooldown -= dt;
+  if (cat.invuln > 0) cat.invuln -= dt;
+
+  if (cat.attackTimer > 0 && !cat.attackHitDone) {
+    const ax = cat.x + cat.w / 2 + cat.facing * 30;
+    const ay = cat.y + cat.h / 2;
+    const attackRadius = 55;
+
+    for (let i = game.enemies.length - 1; i >= 0; i--) {
+      const en = game.enemies[i];
+      const enCenterX = en.x + en.w / 2;
+      const enCenterY = en.y + en.h / 2;
+      const dx = enCenterX - ax;
+      const dy = enCenterY - ay;
+      const dist = Math.hypot(dx, dy);
+
+      if (dist < attackRadius + 20) {
+        en.hp--;
+        en.hurtTimer = 0.2;
+        if (en.hp <= 0) {
+          killEnemy(en, i);
+        } else {
+          en.x += cat.facing * 20;
+          game.shake = 5;
+        }
+      }
+    }
+    cat.attackHitDone = true;
+  }
+
+  const targetCamX = cat.x - W * 0.35;
+  game.camera.x += (targetCamX - game.camera.x) * Math.min(1, dt * 5);
+  if (game.camera.x < 0) game.camera.x = 0;
+
+  game.distance = cat.x;
+
+  while (game.lastPlatformX < game.camera.x + W + 500) {
+    spawnChunk();
+  }
+
+  game.platforms = game.platforms.filter(p => p.x + p.w > game.camera.x - 400);
+
+  for (let i = game.enemies.length - 1; i >= 0; i--) {
+    const en = game.enemies[i];
+    en.vy += game.gravity * dt;
+    en.y += en.vy * dt;
+    en.x += en.vx * dt;
+    en.animTimer += dt;
+    if (en.hurtTimer > 0) en.hurtTimer -= dt;
+
+    en.onGround = false;
+    for (const p of game.platforms) {
+      if (en.x + en.w > p.x && en.x < p.x + p.w) {
+        const prevBottom = en.y + en.h - en.vy * dt;
+        const currBottom = en.y + en.h;
+        if (en.vy >= 0 && prevBottom <= p.y + 2 && currBottom >= p.y) {
+          en.y = p.y - en.h;
+          en.vy = 0;
+          en.onGround = true;
+        }
+      }
+    }
+
+    if (en.x + en.w < game.camera.x - 200 || en.y > H + 300) {
+      game.enemies.splice(i, 1);
+      continue;
+    }
+
+    if (cat.invuln <= 0 && rectsOverlap(cat, en)) {
+      damageCat(1);
+      cat.vy = -400;
+      cat.vx = -cat.facing * 300;
+      cat.x += -cat.facing * 20;
+    }
+  }
+
+  for (let i = game.items.length - 1; i >= 0; i--) {
+    const it = game.items[i];
+    it.bob += dt * 4;
+    if (it.x + it.w < game.camera.x - 200 || it.y > H + 200) {
+      game.items.splice(i, 1);
+      continue;
+    }
+    if (rectsOverlap(cat, it)) {
+      if (it.type === 'fish') {
+        game.fish++;
+        game.score += 10;
+        game.combo++;
+        game.comboTimer = 2;
+        for (let j = 0; j < 8; j++) {
+          game.particles.push({
+            x: it.x + 12, y: it.y + 12,
+            vx: (Math.random() - 0.5) * 200,
+            vy: (Math.random() - 0.5) * 200 - 100,
+            life: 0.6, maxLife: 0.6,
+            color: '#ff0', size: 3
+          });
+        }
+      } else if (it.type === 'milk') {
+        if (game.hp < 5) {
+          game.hp++;
+          game.cat.invuln = 1;
+        } else {
+          game.score += 50;
+        }
+      }
+      game.items.splice(i, 1);
+    }
+  }
+
+  for (let i = game.particles.length - 1; i >= 0; i--) {
+    const p = game.particles[i];
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vy += 400 * dt;
+    p.life -= dt;
+    if (p.life <= 0) game.particles.splice(i, 1);
+  }
+
+  if (game.comboTimer > 0) {
+    game.comboTimer -= dt;
+    if (game.comboTimer <= 0) game.combo = 0;
+  }
+
+  game.bgOffset += dt * 30;
+  if (game.shake > 0) game.shake *= 0.9;
+
+  if (game.hp <= 0) gameOver();
+
+  updateHUD();
+}
+
+function rectsOverlap(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+function damageCat(amount, silent) {
+  if (game.cat.invuln > 0 && !silent) return;
+  game.hp -= amount;
+  game.cat.invuln = 1.5;
+  game.cat.vy = -400;
+  game.shake = 15;
+  game.combo = 0;
+  for (let i = 0; i < 12; i++) {
+    game.particles.push({
+      x: game.cat.x + 22, y: game.cat.y + 22,
+      vx: (Math.random() - 0.5) * 400,
+      vy: (Math.random() - 0.5) * 400 - 100,
+      life: 0.5, maxLife: 0.5,
+      color: '#f36', size: 4
+    });
+  }
+}
+
+function killEnemy(en, index) {
+  game.enemies.splice(index, 1);
+  game.score += 50 + game.combo * 5;
+  game.combo++;
+  game.comboTimer = 2;
+  game.shake = 10;
+  const colors = en.type === 'mouse' ? '#f80' : en.type === 'dog' ? '#fa0' : '#0ff';
+  for (let i = 0; i < 15; i++) {
+    game.particles.push({
+      x: en.x + en.w/2, y: en.y + en.h/2,
+      vx: (Math.random() - 0.5) * 400,
+      vy: (Math.random() - 0.5) * 400,
+      life: 0.6, maxLife: 0.6,
+      color: colors, size: 3 + Math.random() * 3
+    });
+  }
+  if (Math.random() < 0.4) {
+    game.items.push({
+      x: en.x + en.w/2 - 12, y: en.y - 30,
+      w: 24, h: 24, type: 'fish', bob: 0
+    });
+  }
+}
+
+function updateHUD() {
+  hpEl.textContent = game.hp;
+  fishEl.textContent = game.fish;
+  scoreEl.textContent = game.score;
+  comboEl.textContent = game.combo > 1 ? `x${game.combo} COMBO!` : '';
+}
+
+function gameOver() {
+  running = false;
+  overlay.innerHTML = `
+    <h1><span class="cat">😿</span>МЯУ... ПРОВАЛ</h1>
+    <p style="color:#f36;">Кот-ниндзя повержен</p>
+    <div class="controls" style="color:#ff0;">
+      > ОЧКОВ: <b>${game.score}</b><br>
+      > РЫБЫ: <b>${game.fish}</b><br>
+      > ДИСТАНЦИЯ: <b>${Math.floor(game.distance / 10)} м</b>
+    </div>
+    <button id="retryBtn">ЕЩЁ РАЗ</button>
+  `;
+  overlay.classList.remove('hidden');
+  document.getElementById('retryBtn').onclick = () => {
+    overlay.classList.add('hidden');
+    game = createGame();
+    initLevel();
+    running = true;
+    lastTime = performance.now();
+    loop(lastTime);
+  };
+}
+
+// ============ ОТРИСОВКА ============
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  const camX = game.camera.x;
+
+  ctx.save();
+  if (game.shake > 0.5) {
+    ctx.translate((Math.random() - 0.5) * game.shake, (Math.random() - 0.5) * game.shake);
+  }
+
+  const skyGrad = ctx.createLinearGradient(0, 0, 0, H);
+  skyGrad.addColorStop(0, '#1a0a2e');
+  skyGrad.addColorStop(0.5, '#2a1a4a');
+  skyGrad.addColorStop(1, '#0a0a1a');
+  ctx.fillStyle = skyGrad;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = '#ffe';
+  ctx.shadowBlur = 40;
+  ctx.shadowColor = '#ffe';
+  ctx.beginPath();
+  ctx.arc(750, 100, 40, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  for (let i = 0; i < 60; i++) {
+    const sx = ((i * 137 + game.bgOffset * 0.1) % (W + 100)) - 50;
+    const sy = (i * 53) % 300;
+    const twinkle = 0.4 + Math.sin(game.bgOffset * 0.05 + i) * 0.3;
+    ctx.fillStyle = `rgba(255,255,255,${twinkle})`;
+    ctx.fillRect(sx, sy, 2, 2);
+  }
+
+  ctx.fillStyle = '#0a0a2a';
+  for (let i = 0; i < 20; i++) {
+    const bx = ((i * 120 - camX * 0.2) % (W + 200)) - 100;
+    const bh = 100 + (i * 37) % 150;
+    ctx.fillRect(bx, 480 - bh, 80, bh);
+    ctx.fillStyle = '#ff08';
+    for (let wy = 480 - bh + 15; wy < 470; wy += 25) {
+      for (let wx = bx + 10; wx < bx + 70; wx += 20) {
+        if ((wx + wy + i) % 3 === 0) ctx.fillRect(wx, wy, 6, 10);
+      }
+    }
+    ctx.fillStyle = '#0a0a2a';
+  }
+
+  ctx.fillStyle = '#14143a';
+  for (let i = 0; i < 15; i++) {
+    const bx = ((i * 160 - camX * 0.5) % (W + 300)) - 150;
+    const bh = 80 + (i * 73) % 180;
+    ctx.fillRect(bx, 480 - bh, 100, bh);
+    ctx.fillStyle = '#ffa3';
+    for (let wy = 480 - bh + 15; wy < 470; wy += 22) {
+      for (let wx = bx + 12; wx < bx + 88; wx += 18) {
+        if ((wx * wy + i) % 4 === 0) ctx.fillRect(wx, wy, 8, 12);
+      }
+    }
+    ctx.fillStyle = '#14143a';
+  }
+
+  for (const p of game.platforms) {
+    const px = p.x - camX;
+    if (px + p.w < -50 || px > W + 50) continue;
+
+    if (p.type === 'ground') {
+      const grad = ctx.createLinearGradient(px, p.y, px, p.y + p.h);
+      grad.addColorStop(0, '#3a2a5a');
+      grad.addColorStop(0.1, '#2a1a4a');
+      grad.addColorStop(1, '#1a0a2a');
+      ctx.fillStyle = grad;
+      ctx.fillRect(px, p.y, p.w, p.h);
+
+      ctx.fillStyle = '#f0f';
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = '#f0f';
+      ctx.fillRect(px, p.y, p.w, 3);
+      ctx.shadowBlur = 0;
+
+      ctx.fillStyle = '#ff06';
+      for (let wx = px + 15; wx < px + p.w - 15; wx += 40) {
+        ctx.fillRect(wx, p.y + 15, 20, 25);
+      }
+    } else if (p.type === 'roof') {
+      ctx.fillStyle = '#2a1a4a';
+      ctx.fillRect(px, p.y, p.w, p.h);
+      ctx.fillStyle = '#0ff';
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = '#0ff';
+      ctx.fillRect(px, p.y, p.w, 2);
+      ctx.shadowBlur = 0;
+    }
+  }
+
+  for (const it of game.items) {
+    const ix = it.x - camX;
+    if (ix < -50 || ix > W + 50) continue;
+    const bobY = Math.sin(it.bob) * 4;
+
+    if (it.type === 'fish') {
+      ctx.save();
+      ctx.translate(ix + 12, it.y + 12 + bobY);
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = '#ff0';
+      ctx.fillStyle = '#ff0';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 12, 7, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(-10, 0);
+      ctx.lineTo(-18, -6);
+      ctx.lineTo(-18, 6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.arc(5, -2, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    } else if (it.type === 'milk') {
+      ctx.save();
+      ctx.translate(ix + 13, it.y + 13 + bobY);
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = '#0ff';
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(-10, -12, 20, 24);
+      ctx.fillStyle = '#0af';
+      ctx.fillRect(-10, -12, 20, 6);
+      ctx.fillStyle = '#0af';
+      ctx.font = 'bold 10px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('M', 0, 6);
+      ctx.restore();
+    }
+  }
+
+  for (const en of game.enemies) {
+    const ex = en.x - camX;
+    if (ex + en.w < -50 || ex > W + 50) continue;
+
+    ctx.save();
+    ctx.translate(ex + en.w/2, en.y + en.h/2);
+
+    if (en.hurtTimer > 0) {
+      ctx.globalAlpha = 0.5 + Math.sin(en.hurtTimer * 40) * 0.5;
+    }
+
+    if (en.type === 'mouse') {
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = '#f80';
+      ctx.fillStyle = '#8a4a2a';
+      ctx.beginPath();
+      ctx.ellipse(0, 5, 14, 12, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(-8, -4, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(-14, -12, 5, 0, Math.PI * 2);
+      ctx.arc(-4, -12, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#f00';
+      ctx.fillRect(-16, -8, 16, 4);
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(-12, -3, 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.arc(-12, -3, 1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#8a4a2a';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(13, 5);
+      ctx.quadraticCurveTo(22, 0, 18, -8);
+      ctx.stroke();
+    } else if (en.type === 'dog') {
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = '#fa0';
+      ctx.fillStyle = '#6a3a2a';
+      ctx.beginPath();
+      ctx.ellipse(0, 6, 18, 14, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(-12, -6, 12, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(-18, -14); ctx.lineTo(-22, -22); ctx.lineTo(-14, -16);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(-6, -14); ctx.lineTo(-4, -22); ctx.lineTo(0, -16);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#f00';
+      ctx.beginPath();
+      ctx.arc(-16, -6, 2, 0, Math.PI * 2);
+      ctx.arc(-8, -6, 2, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (en.type === 'robot') {
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = '#0ff';
+      ctx.fillStyle = '#3a3a5a';
+      ctx.beginPath();
+      ctx.arc(0, 8, 18, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#0ff';
+      ctx.beginPath();
+      ctx.arc(0, 8, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#f00';
+      ctx.fillRect(-6, -10, 12, 4);
+    }
+
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
+  drawCat(camX);
+
+  for (const p of game.particles) {
+    const px = p.x - camX;
+    ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
+    ctx.fillStyle = p.color;
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = p.color;
+    ctx.beginPath();
+    ctx.arc(px, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  ctx.shadowBlur = 0;
+
+  ctx.restore();
+}
+
+function drawCat(camX) {
+  const cat = game.cat;
+  const cx = cat.x - camX + cat.w / 2;
+  const cy = cat.y + cat.h / 2;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  if (cat.invuln > 0 && Math.floor(cat.invuln * 15) % 2 === 0) {
+    ctx.globalAlpha = 0.4;
+  }
+
+  if (cat.attackTimer > 0) {
+    const t = 1 - cat.attackTimer / 0.2;
+    ctx.save();
+    ctx.scale(cat.facing, 1);
+    ctx.strokeStyle = `rgba(0,255,255,${1 - t})`;
+    ctx.lineWidth = 4;
+    ctx.shadowBlur = 25;
+    ctx.shadowColor = '#0ff';
+    ctx.beginPath();
+    ctx.arc(20, 0, 40 * t + 15, -Math.PI / 2.5, Math.PI / 2.5);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  ctx.scale(cat.facing, 1);
+
+  let bodyOffset = 0;
+  if (!cat.onGround) bodyOffset = cat.vy < 0 ? -3 : 3;
+
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 5;
+  ctx.lineCap = 'round';
+  const tailWag = Math.sin(performance.now() / 150) * 4;
+  ctx.beginPath();
+  ctx.moveTo(-16, bodyOffset + 8);
+  ctx.quadraticCurveTo(-28, bodyOffset - 5 + tailWag, -22, bodyOffset - 15 + tailWag);
+  ctx.stroke();
+
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.ellipse(0, bodyOffset + 6, 18, 14, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(10, bodyOffset - 6, 13, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(3, bodyOffset - 16);
+  ctx.lineTo(0, bodyOffset - 26);
+  ctx.lineTo(10, bodyOffset - 18);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(14, bodyOffset - 17);
+  ctx.lineTo(20, bodyOffset - 26);
+  ctx.lineTo(22, bodyOffset - 14);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = '#f9c';
+  ctx.beginPath();
+  ctx.moveTo(5, bodyOffset - 17);
+  ctx.lineTo(3, bodyOffset - 23);
+  ctx.lineTo(9, bodyOffset - 19);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = '#f00';
+  ctx.fillRect(4, bodyOffset - 10, 18, 5);
+  ctx.strokeStyle = '#f00';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(4, bodyOffset - 8);
+  ctx.lineTo(-6, bodyOffset - 14);
+  ctx.stroke();
+
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.ellipse(16, bodyOffset - 4, 3, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#0ff';
+  ctx.beginPath();
+  ctx.arc(17, bodyOffset - 4, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#f9c';
+  ctx.beginPath();
+  ctx.arc(20, bodyOffset + 2, 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  const legOffset = cat.onGround ? Math.sin(cat.runFrame) * 3 : 0;
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-6, bodyOffset + 16 + legOffset, 6, 8);
+  ctx.fillRect(4, bodyOffset + 16 - legOffset, 6, 8);
+
+  ctx.strokeStyle = '#aaa';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(-4, bodyOffset + 10);
+  ctx.lineTo(-14, bodyOffset - 8);
+  ctx.stroke();
+  ctx.strokeStyle = '#f00';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-12, bodyOffset - 5);
+  ctx.lineTo(-16, bodyOffset - 11);
+  ctx.stroke();
+
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+// ============ ЦИКЛ ============
+function loop(t) {
+  const dt = Math.min(0.05, (t - lastTime) / 1000);
+  lastTime = t;
+
+  if (running) update(dt);
+  draw();
+
+  requestAnimationFrame(loop);
+}
+
+// ============ СТАРТ ============
+resizeCanvas();
+game = createGame();
+initLevel();
+loop(performance.now());
+</script>
+</body>
+</html>
